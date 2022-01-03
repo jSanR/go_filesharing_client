@@ -10,7 +10,7 @@ import (
 	filepath2 "path/filepath"
 )
 
-func subscribeToChannel(channel int8) {
+func subscribeToChannel(channel int8, downloadPath string) {
 	fmt.Println("Receive mode: channel", channel)
 	//Se crea un listener del cliente para poder recibir mensajes del servidor cuando un archivo sea enviado
 	var listener net.Listener
@@ -103,7 +103,7 @@ func subscribeToChannel(channel int8) {
 		}
 
 		//Recibir el archivo y guardarlo
-		go receiveFile(incomingConnection)
+		go receiveFile(incomingConnection, downloadPath)
 	}
 }
 

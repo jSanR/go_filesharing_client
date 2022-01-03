@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-func receiveFile(connection net.Conn) {
+func receiveFile(connection net.Conn, downloadPath string) {
 	var exitStatus int = -1 //Código que indica el resultado de procesar la conexión actual
 	//Asegurarse de que la conexión se cierre
 	defer connection.Close()
@@ -82,7 +82,7 @@ func receiveFile(connection net.Conn) {
 	//Se guarda el archivo en el equipo
 	var file *os.File
 	var fileError error
-	file, fileError = os.Create(RECEIVED_FILES_PATH + filename)
+	file, fileError = os.Create(downloadPath + filename)
 	defer file.Close()
 	//Error check
 	if fileError != nil {

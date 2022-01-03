@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 //Archivo con la función main del cliente
@@ -12,14 +13,19 @@ import (
 const BUFFER_SIZE = 1024       //Tamaño del buffer para enviar bytes al servidor
 const SERVER_PORT = "7101"     //Puerto en el que opera el servidor
 const FILENAME_MAX_LENGTH = 40 //Tamaño máximo del nombre de un archivo que se recibe
-const RECEIVED_FILES_PATH = "D:\\Libraries\\Documentos\\testClient\\"
+const DEFAULT_DOWNLOAD_PATH = "D:\\Libraries\\Documentos\\testClient\\"
 
 func main() {
 	//Verificar argumentos
-	if len(os.Args) != 4 && len(os.Args) != 5 {
+	if len(os.Args) < 4 || len(os.Args) > 6 {
+		fmt.Println("File sharing client: Send and receive files using channels through a TCP server\n")
 		fmt.Println("Usage:")
-		fmt.Println("Receive mode: client receive -channel CHANNEL (example: client receive -channel 1)")
-		fmt.Println("Send mode: cliente send FILE -channel CHANNEL (example: client send test.txt -channel 4)")
+		fmt.Println("Receive mode:\t client receive -channel CHANNEL [-path DOWNLOAD_PATH]")
+		fmt.Println("Send mode:\t client send FILE -channel CHANNEL")
+		fmt.Println("\nExamples:")
+		fmt.Println("client receive -channel 1 //Receive files sent by other clients to channel 1 using the default download path")
+		fmt.Println("client receive -channel 3 -path D:\\Downloads\\ //Receive files sent by other clients to channel 3 using a custom download path")
+		fmt.Println("client send test.txt -channel 4 //Send file test.txt to clients currently subscribed to channel 4")
 		os.Exit(0)
 	}
 
@@ -29,7 +35,13 @@ func main() {
 	switch mode {
 	case "receive":
 		channel = parseChannel(os.Args[3])
-		subscribeToChannel(channel)
+		var downloadPath string
+		if len(os.Args) == 6 {
+			downloadPath = parseDownloadPath(os.Args[5])
+		} else {
+			downloadPath = DEFAULT_DOWNLOAD_PATH
+		}
+		subscribeToChannel(channel, downloadPath)
 	case "send":
 		channel = parseChannel(os.Args[4])
 		filepath = os.Args[2]
@@ -48,4 +60,12 @@ func parseChannel(channelStr string) int8 {
 		os.Exit(1)
 	}
 	return int8(channel)
+}
+
+func parseDownloadPath(path string) string {
+	//Revisar que el path recibido contenga un separador de directorio al final
+	if !strings.HasSuffix(path, string(os.PathSeparator)) {
+		path += string(os.PathSeparator)
+	}
+	return path
 }
