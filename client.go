@@ -18,8 +18,8 @@ func main() {
 	//Verificar argumentos
 	if len(os.Args) != 4 && len(os.Args) != 5 {
 		fmt.Println("Usage:")
-		fmt.Println("Receive mode: client receive -channel CHANNEL (example: client receive -channel 1")
-		fmt.Println("Send mode: cliente send FILE -channel CHANNEL (example: client send test.txt -channel 4")
+		fmt.Println("Receive mode: client receive -channel CHANNEL (example: client receive -channel 1)")
+		fmt.Println("Send mode: cliente send FILE -channel CHANNEL (example: client send test.txt -channel 4)")
 		os.Exit(0)
 	}
 
