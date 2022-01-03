@@ -1,2 +1,2 @@
 # go_filesharing_client
-Implementación de un servidor TCP capaz de recibir y enviar archivos a clientes a través de un protocolo personalizado
+Implementación de un cliente capaz de recibir y enviar archivos a otros clientes comunicándose con un servidor TCP a través de un protocolo personalizado
