@@ -1,0 +1,12 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Linux Client receive" type="GoApplicationRunConfiguration" factoryName="Go Application">
+    <module name="Client" />
+    <working_directory value="$PROJECT_DIR$" />
+    <parameters value="receive -channel 1 -path $USER_HOME$/Documents/test" />
+    <kind value="DIRECTORY" />
+    <package value="Client" />
+    <directory value="$PROJECT_DIR$" />
+    <filePath value="$PROJECT_DIR$" />
+    <method v="2" />
+  </configuration>
+</component>
