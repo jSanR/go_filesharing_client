@@ -1,13 +1,13 @@
 package main
 
+//Archivo con la función main del cliente
+
 import (
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 )
-
-//Archivo con la función main del cliente
 
 //Constantes
 const BUFFER_SIZE = 1024       //Tamaño del buffer para enviar bytes al servidor
@@ -32,8 +32,10 @@ func main() {
 	var mode string = os.Args[1]
 	var channel int8
 	var filepath string
+	//Determinar el modo seleccionado por el cliente
 	switch mode {
 	case "receive":
+		//Leer canal y, opcionalmente, path de descarga de archivos
 		channel = parseChannel(os.Args[3])
 		var downloadPath string
 		if len(os.Args) == 6 {
@@ -41,20 +43,25 @@ func main() {
 		} else {
 			downloadPath = DEFAULT_DOWNLOAD_PATH
 		}
+
 		subscribeToChannel(channel, downloadPath)
 	case "send":
+		//Leer canal y path del archivo a enviar
 		channel = parseChannel(os.Args[4])
 		filepath = os.Args[2]
+
 		sendFileThroughChannel(channel, filepath)
 	}
 }
 
 func parseChannel(channelStr string) int8 {
+	//Conversión del canal a un entero
 	channel, parseError := strconv.Atoi(channelStr)
 	if parseError != nil {
 		fmt.Println("ERROR: Channel is not a valid number: " + parseError.Error())
 		os.Exit(1)
 	}
+	//Se verifica un canal válido (el valor máximo se verifica al conectarse con el servidor)
 	if channel < 1 {
 		fmt.Println("ERROR: Channel is outside valid range (min: 1)")
 		os.Exit(1)

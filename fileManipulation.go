@@ -49,7 +49,7 @@ func receiveFile(connection net.Conn, downloadPath string) {
 		fmt.Printf("Handled file transfer (status: %d)\n", exitStatus)
 		return
 	}
-	//Parsear el nombre del archivo
+	//Parsear el nombre del archivo (bytes no utilizados se llenan con el caracter \x00)
 	var filename string = strings.Split(string(filenameBuffer), "\x00")[0]
 	//Comprobar que el nombre del archivo no esté vacío
 	if len(filename) == 0 {
@@ -79,7 +79,7 @@ func receiveFile(connection net.Conn, downloadPath string) {
 		fmt.Printf("Handled file transfer (status: %d)\n", exitStatus)
 		return
 	}
-	//Se guarda el archivo en el equipo
+	//Se crea un nuevo archivo en el equipo con el nombre del archivo enviado
 	var file *os.File
 	var fileError error
 	file, fileError = os.Create(downloadPath + filename)
@@ -126,6 +126,7 @@ func sendFile(messageHeader []byte, filename []byte, file *os.File) {
 	//Completar el mensaje
 	var message, fileContent, lengthBuffer []byte
 	fileContent = fileBuffer.Bytes()
+	//Se añade el header al mensaje
 	message = append(message, messageHeader...)
 	//Calcular la longitud del contendido (nombre + contenido del archivo)
 	var contentLength int64 = FILENAME_MAX_LENGTH + fileSize
@@ -153,16 +154,18 @@ func sendFile(messageHeader []byte, filename []byte, file *os.File) {
 	var connection net.Conn
 	var connectionError error
 	connection, connectionError = net.Dial("tcp", "127.0.0.1:"+SERVER_PORT)
-
+	//Error check
 	if connectionError != nil {
 		fmt.Println("ERROR: Error while connecting to server: " + connectionError.Error())
 		os.Exit(2)
 	}
+	fmt.Println("Connection successful")
 	//Asegurarse de que la conexión se cierre
 	defer connection.Close()
 	//Enviar el mensaje con el archivo en cuestión
 	var messageError error
 	_, messageError = connection.Write(message)
+	//Error check
 	if messageError != nil {
 		fmt.Println("ERROR: Error while sending message to server: " + messageError.Error())
 		os.Exit(2)
@@ -172,7 +175,7 @@ func sendFile(messageHeader []byte, filename []byte, file *os.File) {
 	fmt.Println("File sent. Awaiting server response...")
 	var responseBuffer []byte = make([]byte, BUFFER_SIZE)
 	n, responseError := connection.Read(responseBuffer)
-
+	//Error check
 	if responseError != nil {
 		fmt.Println("ERROR: Error while getting server's response: " + responseError.Error())
 		os.Exit(2)
