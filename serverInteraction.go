@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	filepath2 "path/filepath"
+	"syscall"
 )
 
 //Función para enviar una solicitud de suscripción a un determinado canal al servidor
@@ -106,6 +108,15 @@ func subscribeToChannel(channel int8, downloadPath string) {
 	}
 
 	//Una vez exitosa la suscripción, el cliente queda esperando transferencias de archivos mediante el listener
+	//Primero dejemos corriendo una goroutine para cancelar la suscripción al canal si el programa termina
+	sig := make(chan os.Signal)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM) //El programa responderá a las señales SIGINT y SIGTERM
+	go func() {
+		<-sig
+		unsubscribe(channel, addressBuffer)
+		os.Exit(0)
+	}()
+	//Ahora se atienden las transferencias
 	for {
 		var incomingConnection net.Conn
 		var incomingConnError error
@@ -152,4 +163,10 @@ func sendFileThroughChannel(channel int8, filepath string) {
 
 	//Se realiza el envío del archivo al servidor
 	sendFile(header, []byte(filename), file)
+}
+
+func unsubscribe(channel int8, address []byte) {
+	//Anunciar que el cliente va a cancelar su suscripción al canal
+	fmt.Println("Cancelando suscripción de", string(address), "al canal", channel)
+	//TODO Completar la lógica de cancelación
 }
