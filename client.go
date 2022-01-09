@@ -51,6 +51,9 @@ func main() {
 		filepath = os.Args[2]
 
 		sendFileThroughChannel(channel, filepath)
+	default:
+		fmt.Println("ERROR: Invalid command \"" + mode + "\"")
+		os.Exit(1)
 	}
 }
 
