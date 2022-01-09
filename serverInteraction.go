@@ -10,6 +10,7 @@ import (
 	filepath2 "path/filepath"
 )
 
+//Función para enviar una solicitud de suscripción a un determinado canal al servidor
 func subscribeToChannel(channel int8, downloadPath string) {
 	//Anunciar el modo en el que se ejecuta el cliente
 	fmt.Println("Receive mode: channel", channel)
@@ -27,21 +28,13 @@ func subscribeToChannel(channel int8, downloadPath string) {
 	//Se obtiene en un string la IP y puerto del listener del cliente
 	var clientAddress string = listener.Addr().String()
 
-	//El cliente se comunica con el servidor para suscribirse al canal (enviando un mensaje
+	//El cliente se comunica con el servidor para suscribirse al canal (enviando un mensaje)
 	var message []byte
 	var command int8 = 0
-	//Añadir el comando al mensaje
-	message = append(message, byte(command))
-	//Añadir el canal al mensaje
-	message = append(message, byte(channel))
-	//Añadir la longitud del contenido al mensaje
-	var lengthBuffer []byte = make([]byte, 8)
 	var addressBuffer []byte = []byte(clientAddress)
 	var contentLength int64 = int64(len(addressBuffer))
-	binary.LittleEndian.PutUint64(lengthBuffer, uint64(contentLength))
-	message = append(message, lengthBuffer...)
-	//Añadir el contenido (dirección del listener del cliente) al mensaje
-	message = append(message, addressBuffer...)
+	//Se genera el mensaje como tal
+	message = createSimpleMessage(command, channel, addressBuffer)
 
 	//Verificar que la longitud del mensaje sea la correcta
 	if int64(len(message)) != 10+contentLength {
@@ -68,30 +61,47 @@ func subscribeToChannel(channel int8, downloadPath string) {
 		os.Exit(2)
 	}
 
-	fmt.Println("Request sent. Awaiting server response...")
-	//Recibir respuesta del servidor
-	var responseBuffer []byte = make([]byte, BUFFER_SIZE)
-	n, responseError := connection.Read(responseBuffer)
+	fmt.Println("Request sent. Awaiting server content...")
+	//Recibir respuesta del servidor (leyendo primero el header)
+	var headerBuffer []byte = make([]byte, 10)
+	var responseCommand int8
+	var responseContentLength int64
+	_, headerError := connection.Read(headerBuffer)
 	//Error check
-	if responseError != nil {
-		fmt.Println("ERROR: Error while getting server's response: " + responseError.Error())
+	if headerError != nil {
+		fmt.Println("ERROR: Error while getting server's response header: " + headerError.Error())
 		connection.Close()
 		os.Exit(2)
 	}
-
+	//Parsear header (comando, longitud del contenido)
+	responseCommand = int8(headerBuffer[0])
+	responseContentLength = int64(binary.LittleEndian.Uint64(headerBuffer[2:]))
+	//Leer respuesta
+	var contentBuffer []byte = make([]byte, responseContentLength)
+	var content string
+	_, contentError := connection.Read(contentBuffer)
+	//Error check
+	if contentError != nil {
+		fmt.Println("ERROR: Error while getting server's response content: " + contentError.Error())
+		connection.Close()
+		os.Exit(2)
+	}
 	//Parsear respuesta
-	var response string = string(responseBuffer[:n])
+	content = string(contentBuffer)
 
 	//Cerrar conexión, pues ya se obtuvo una respuesta
 	connection.Close()
 
 	//Interpretar respuesta
-	switch response {
-	case "success":
+	switch responseCommand {
+	case 2:
 		fmt.Println("Client successfully subscribed to channel", channel)
 		fmt.Println("Awaiting incoming file transfers on " + clientAddress + "...")
+	case 3:
+		fmt.Println("ERROR: Server error (" + content + ")")
+		os.Exit(2)
 	default:
-		fmt.Println("ERROR: Server error (" + response + ")")
+		fmt.Println("Invalid command received from server:", responseCommand)
 		os.Exit(2)
 	}
 
@@ -108,10 +118,11 @@ func subscribeToChannel(channel int8, downloadPath string) {
 		}
 
 		//Recibir el archivo y guardarlo
-		go receiveFile(incomingConnection, downloadPath)
+		go receiveFile(incomingConnection, downloadPath, channel)
 	}
 }
 
+//Función para enviar una solicitud de envío de archivo a un determinado canal al servidor
 func sendFileThroughChannel(channel int8, filepath string) {
 	//Anunciar el modo en el que se ejecuta el cliente
 	fmt.Println("Send mode: file "+filepath+", channel", channel)

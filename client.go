@@ -10,7 +10,7 @@ import (
 )
 
 //Constantes
-const BUFFER_SIZE = 1024       //Tamaño del buffer para enviar bytes al servidor
+const NUMBER_OF_CHANNELS = 8   //Cantidad de canales disponibles para que un cliente se suscriba
 const SERVER_PORT = "7101"     //Puerto en el que opera el servidor
 const FILENAME_MAX_LENGTH = 40 //Tamaño máximo del nombre de un archivo que se recibe
 const DEFAULT_DOWNLOAD_PATH = "D:\\Libraries\\Documentos\\testClient\\"
@@ -54,6 +54,7 @@ func main() {
 	}
 }
 
+//Función para parsear el canal a partir de un string y verificar su validez
 func parseChannel(channelStr string) int8 {
 	//Conversión del canal a un entero
 	channel, parseError := strconv.Atoi(channelStr)
@@ -62,8 +63,8 @@ func parseChannel(channelStr string) int8 {
 		os.Exit(1)
 	}
 	//Se verifica un canal válido (el valor máximo se verifica al conectarse con el servidor)
-	if channel < 1 {
-		fmt.Println("ERROR: Channel is outside valid range (min: 1)")
+	if channel < 1 || channel > NUMBER_OF_CHANNELS {
+		fmt.Println("ERROR: Channel is outside valid range (1-" + strconv.Itoa(NUMBER_OF_CHANNELS) + ")")
 		os.Exit(1)
 	}
 	return int8(channel)

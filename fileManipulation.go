@@ -12,18 +12,62 @@ import (
 	"strings"
 )
 
-func receiveFile(connection net.Conn, downloadPath string) {
+//Función para recibir un archivo proveniente del servidor
+func receiveFile(connection net.Conn, downloadPath string, channel int8) {
 	var exitStatus int = -1 //Código que indica el resultado de procesar la conexión actual
 	//Asegurarse de que la conexión se cierre
 	defer connection.Close()
-	//Leer la longitud del contenido
-	var lengthBuffer []byte = make([]byte, 8)
-	_, lengthError := connection.Read(lengthBuffer)
+	//Leer el header del mensaje
+	var headerBuffer []byte = make([]byte, 10)
+	var headerCommand, headerChannel int8
+	var contentLength int64
+	_, headerError := connection.Read(headerBuffer)
 	//Error check
-	if lengthError != nil {
-		fmt.Println("ERROR: Error while reading message's content length: " + lengthError.Error())
-		connection.Write([]byte("length read error"))
+	if headerError != nil {
+		fmt.Println("ERROR: Error while reading message header: " + headerError.Error())
+		_, err := connection.Write(createSimpleMessage(3, channel, []byte("header read error")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to server: " + err.Error())
+		}
 		exitStatus = 2
+		fmt.Printf("Handled file transfer (status: %d)\n", exitStatus)
+		return
+	}
+	//Parsear el header del mensaje (comando, canal, longitud del contenido)
+	headerCommand = int8(headerBuffer[0])
+	headerChannel = int8(headerBuffer[1])
+	contentLength = int64(binary.LittleEndian.Uint64(headerBuffer[2:]))
+	//Comprobar validez de los 3 campos
+	//Comando (debe ser el comando send o 1)
+	if headerCommand != 1 {
+		fmt.Println("ERROR: Invalid command (should have value 1 for \"send\")")
+		_, err := connection.Write(createSimpleMessage(3, channel, []byte("invalid command")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to server: " + err.Error())
+		}
+		exitStatus = 3
+		fmt.Printf("Handled file transfer (status: %d)\n", exitStatus)
+		return
+	}
+	//Canal (debe ser el mismo que el recibido como parámetro)
+	if headerChannel != channel {
+		fmt.Println("ERROR: Subscribed and received channels differ")
+		_, err := connection.Write(createSimpleMessage(3, channel, []byte("incorrect channel")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to server: " + err.Error())
+		}
+		exitStatus = 3
+		fmt.Printf("Handled file transfer (status: %d)\n", exitStatus)
+		return
+	}
+	//Longitud de contenido (debe ser como mayor al tamaño máximo de nombre de archivo)
+	if contentLength <= FILENAME_MAX_LENGTH {
+		fmt.Println("ERROR: The client's message specified an invalid content length")
+		_, err := connection.Write(createSimpleMessage(3, channel, []byte("invalid content length")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to server: " + err.Error())
+		}
+		exitStatus = 3
 		fmt.Printf("Handled file transfer (status: %d)\n", exitStatus)
 		return
 	}
@@ -33,19 +77,11 @@ func receiveFile(connection net.Conn, downloadPath string) {
 	//Error check
 	if filenameError != nil {
 		fmt.Println("ERROR: Error while reading file name: " + filenameError.Error())
-		connection.Write([]byte("filename read error"))
+		_, err := connection.Write(createSimpleMessage(3, channel, []byte("filename read error")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to server: " + err.Error())
+		}
 		exitStatus = 2
-		fmt.Printf("Handled file transfer (status: %d)\n", exitStatus)
-		return
-	}
-	//Parsear la longitud del contenido
-	var contentLength int64
-	contentLength = int64(binary.LittleEndian.Uint64(lengthBuffer))
-	//Comprobar que la longitud sea válida
-	if contentLength <= FILENAME_MAX_LENGTH {
-		fmt.Println("ERROR: The client's message specified an invalid content length")
-		connection.Write([]byte("invalid content length"))
-		exitStatus = 3
 		fmt.Printf("Handled file transfer (status: %d)\n", exitStatus)
 		return
 	}
@@ -54,7 +90,10 @@ func receiveFile(connection net.Conn, downloadPath string) {
 	//Comprobar que el nombre del archivo no esté vacío
 	if len(filename) == 0 {
 		fmt.Println("ERROR: The client's message specified an empty file name")
-		connection.Write([]byte("empty filename"))
+		_, err := connection.Write(createSimpleMessage(3, channel, []byte("empty filename")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to server: " + err.Error())
+		}
 		exitStatus = 3
 		fmt.Printf("Handled file transfer (status: %d)\n", exitStatus)
 		return
@@ -67,14 +106,20 @@ func receiveFile(connection net.Conn, downloadPath string) {
 	//Error check
 	if fileContentError != nil {
 		fmt.Println("ERROR: Error while reading file content: " + fileContentError.Error())
-		connection.Write([]byte("file read error"))
+		_, err := connection.Write(createSimpleMessage(3, channel, []byte("file read error")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to server: " + err.Error())
+		}
 		exitStatus = 2
 		fmt.Printf("Handled file transfer (status: %d)\n", exitStatus)
 		return
 	}
 	if int64(n) != contentLength-FILENAME_MAX_LENGTH {
 		fmt.Printf("ERROR: Could not read file content completely (expected: %d, real: %d)\n", contentLength-FILENAME_MAX_LENGTH, n)
-		connection.Write([]byte("file incomplete read"))
+		_, err := connection.Write(createSimpleMessage(3, channel, []byte("file incomplete read")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to server: " + err.Error())
+		}
 		exitStatus = 2
 		fmt.Printf("Handled file transfer (status: %d)\n", exitStatus)
 		return
@@ -87,6 +132,10 @@ func receiveFile(connection net.Conn, downloadPath string) {
 	//Error check
 	if fileError != nil {
 		fmt.Println("ERROR: Error while creating received file in filesystem: " + fileError.Error())
+		_, err := connection.Write(createSimpleMessage(3, channel, []byte("file creation failed")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to server: " + err.Error())
+		}
 		exitStatus = 5
 		fmt.Printf("Handled file transfer (status: %d)\n", exitStatus)
 		return
@@ -99,17 +148,27 @@ func receiveFile(connection net.Conn, downloadPath string) {
 	//Error check
 	if copyError != nil {
 		fmt.Println("ERROR: Error while copying file to buffer: " + copyError.Error())
+		_, err := connection.Write(createSimpleMessage(3, channel, []byte("file copying failed")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to server: " + err.Error())
+		}
 		exitStatus = 5
 		fmt.Printf("Handled file transfer (status: %d)\n", exitStatus)
 		return
 	}
 	//Ya se descargó el archivo
 	fmt.Printf("File %v received (%d bytes)\n", filename, fileSize)
-	connection.Write([]byte("received"))
-	exitStatus = 0
+	_, err := connection.Write(createSimpleMessage(2, channel, []byte("received")))
+	if err != nil {
+		fmt.Println("ERROR: Error while sending response to server: " + err.Error())
+		exitStatus = 5
+	} else {
+		exitStatus = 0
+	}
 	fmt.Printf("Handled file transfer (status: %d)\n", exitStatus)
 }
 
+//Función para enviar un archivo al servidor
 func sendFile(messageHeader []byte, filename []byte, file *os.File) {
 	//Asegurarse de que el archivo se cierre
 	defer file.Close()
@@ -171,25 +230,39 @@ func sendFile(messageHeader []byte, filename []byte, file *os.File) {
 		os.Exit(2)
 	}
 
-	//Obtener respuesta del servidor
+	//Obtener respuesta del servidor (empezando por el header)
 	fmt.Println("File sent. Awaiting server response...")
-	var responseBuffer []byte = make([]byte, BUFFER_SIZE)
-	n, responseError := connection.Read(responseBuffer)
+	var headerBuffer []byte = make([]byte, 10)
+	var responseCommand int8
+	var responseContentLength int64
+	_, headerError := connection.Read(headerBuffer)
 	//Error check
-	if responseError != nil {
-		fmt.Println("ERROR: Error while getting server's response: " + responseError.Error())
+	if headerError != nil {
+		fmt.Println("ERROR: Error while getting server's response header: " + headerError.Error())
 		os.Exit(2)
 	}
-
-	//Parsear respuesta
-	var response string = string(responseBuffer[:n])
+	//Parsear header (comando, longitud del contenido)
+	responseCommand = int8(headerBuffer[0])
+	responseContentLength = int64(binary.LittleEndian.Uint64(headerBuffer[2:]))
+	//Leer contenido del mensaje
+	var contentBuffer []byte = make([]byte, responseContentLength)
+	var content string
+	_, contentError := connection.Read(contentBuffer)
+	if contentError != nil {
+		fmt.Println("ERROR: Error while getting server's response content: " + contentError.Error())
+		os.Exit(2)
+	}
+	//Parsear contenido del mensaje
+	content = string(contentBuffer)
 
 	//Interpretar respuesta
-	switch response {
-	case "received":
+	switch responseCommand {
+	case 2:
 		fmt.Println("Server received file successfully. It will be sent to all subscribed clients on selected channel.")
-	default:
-		fmt.Println("ERROR: Server error (" + response + ")")
+	case 3:
+		fmt.Println("ERROR: Server error (" + content + ")")
 		os.Exit(2)
+	default:
+		fmt.Println("ERROR: Invalid command received from server:", responseCommand)
 	}
 }
