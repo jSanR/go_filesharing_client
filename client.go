@@ -18,7 +18,7 @@ const FILENAME_MAX_LENGTH = 40 //Tamaño máximo del nombre de un archivo que se
 func main() {
 	//Verificar argumentos
 	if len(os.Args) < 5 || len(os.Args) > 6 {
-		fmt.Println("File sharing client: Send and receive files using channels through a TCP server\n")
+		fmt.Print("File sharing client: Send and receive files using channels through a TCP server\n\n")
 		fmt.Println("Usage:")
 		fmt.Println("Receive mode:\t client receive -channel CHANNEL -path DOWNLOAD_PATH")
 		fmt.Println("Send mode:\t client send FILE -channel CHANNEL")

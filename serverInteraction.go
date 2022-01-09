@@ -63,7 +63,7 @@ func subscribeToChannel(channel int8, downloadPath string) {
 		os.Exit(2)
 	}
 
-	fmt.Println("Request sent. Awaiting server content...")
+	fmt.Println("Request sent. Awaiting server response...")
 	//Recibir respuesta del servidor (leyendo primero el header)
 	var headerBuffer []byte = make([]byte, 10)
 	var responseCommand int8
@@ -167,6 +167,58 @@ func sendFileThroughChannel(channel int8, filepath string) {
 
 func unsubscribe(channel int8, address []byte) {
 	//Anunciar que el cliente va a cancelar su suscripción al canal
-	fmt.Println("Cancelando suscripción de", string(address), "al canal", channel)
-	//TODO Completar la lógica de cancelación
+	fmt.Printf("\nCancelando suscripción de %v al canal %d...\n", string(address), channel)
+	//Armar el mensaje a enviar al servidor
+	var message []byte = createSimpleMessage(4, channel, address)
+	//Conectarse al servidor para enviar el mensaje
+	connection, connError := net.Dial("tcp", "127.0.0.1:"+SERVER_PORT)
+	if connError != nil {
+		fmt.Println("ERROR: Error while connecting to server: " + connError.Error())
+		os.Exit(2)
+	}
+	//Asegurarse de cerrar la conexión al salir
+	defer connection.Close()
+	//Enviar mensaje
+	_, sendError := connection.Write(message)
+	if sendError != nil {
+		fmt.Println("ERROR: Error while sending message to server: " + sendError.Error())
+		os.Exit(2)
+	}
+	fmt.Println("Request sent. Awaiting server response...")
+	//Recibir respuesta del servidor (leyendo primero el header)
+	var headerBuffer []byte = make([]byte, 10)
+	var responseCommand int8
+	var responseContentLength int64
+	_, headerError := connection.Read(headerBuffer)
+	//Error check
+	if headerError != nil {
+		fmt.Println("ERROR: Error while getting server's response header: " + headerError.Error())
+		os.Exit(2)
+	}
+	//Parsear header (comando, longitud del contenido)
+	responseCommand = int8(headerBuffer[0])
+	responseContentLength = int64(binary.LittleEndian.Uint64(headerBuffer[2:]))
+	//Leer respuesta
+	var contentBuffer []byte = make([]byte, responseContentLength)
+	var content string
+	_, contentError := connection.Read(contentBuffer)
+	//Error check
+	if contentError != nil {
+		fmt.Println("ERROR: Error while getting server's response content: " + contentError.Error())
+		os.Exit(2)
+	}
+	//Parsear respuesta
+	content = string(contentBuffer)
+
+	//Interpretar respuesta
+	switch responseCommand {
+	case 2:
+		fmt.Println("Client successfully unsubscribed from channel", channel)
+	case 3:
+		fmt.Println("ERROR: Server error (" + content + ")")
+		os.Exit(2)
+	default:
+		fmt.Println("Invalid command received from server:", responseCommand)
+		os.Exit(2)
+	}
 }

@@ -197,9 +197,8 @@ func sendFile(messageHeader []byte, filename []byte, file *os.File) {
 		fmt.Println("ERROR: Error while copying file to buffer: " + copyError.Error())
 		os.Exit(5)
 	}
-	//Completar el mensaje
-	var message, fileContent, lengthBuffer []byte
-	fileContent = fileBuffer.Bytes()
+	//Completar el mensaje (excepto el archivo, pues este se enviará iterativamente luego)
+	var message, lengthBuffer []byte
 	//Se añade el header al mensaje
 	message = append(message, messageHeader...)
 	//Calcular la longitud del contendido (nombre + contenido del archivo)
@@ -215,15 +214,15 @@ func sendFile(messageHeader []byte, filename []byte, file *os.File) {
 		message = append(message, []byte(strings.Repeat("\x00", FILENAME_MAX_LENGTH-len(filename)))...)
 	}
 	//Añadir el contenido del archivo al mensaje
-	message = append(message, fileContent...)
+	//message = append(message, fileContent...)
 
 	//Verificar la longitud del mensaje
-	if int64(len(message)) != 10+contentLength {
+	if int64(len(message)) != 10+FILENAME_MAX_LENGTH {
 		fmt.Printf("ERROR: Error while creating message (expected length: %d, real length: %d)\n", 10+contentLength, len(message))
 		os.Exit(3)
 	}
 
-	//Iniciar conexión con el servidor para enviar el mensaje
+	//Iniciar conexión con el servidor para enviar el mensaje y el archivo
 	fmt.Println("Connecting to server...")
 	var connection net.Conn
 	var connectionError error
@@ -236,7 +235,7 @@ func sendFile(messageHeader []byte, filename []byte, file *os.File) {
 	fmt.Println("Connection successful")
 	//Asegurarse de que la conexión se cierre
 	defer connection.Close()
-	//Enviar el mensaje con el archivo en cuestión
+	//Enviar el mensaje
 	var messageError error
 	_, messageError = connection.Write(message)
 	//Error check
@@ -244,7 +243,48 @@ func sendFile(messageHeader []byte, filename []byte, file *os.File) {
 		fmt.Println("ERROR: Error while sending message to server: " + messageError.Error())
 		os.Exit(2)
 	}
-
+	//Enviar el archivo de forma iterativa (con un buffer temporal)
+	fmt.Printf("Sending %d bytes...\n", fileSize)
+	var tempBuffer []byte = make([]byte, BUFFER_SIZE)
+	var sentLength int = 0
+	//Leer el archivo desde el inicio nuevamente
+	_, seekError := file.Seek(0, io.SeekStart)
+	if seekError != nil {
+		fmt.Println("ERROR: Error while seeking file to the start: " + seekError.Error())
+		os.Exit(5)
+	}
+	for {
+		//Leer del archivo al buffer temporal
+		readBytes, readError := file.Read(tempBuffer)
+		if readError != nil {
+			if readError == io.EOF {
+				fmt.Printf("File read completely (sent %d bytes)\n", sentLength)
+				break
+			}
+			fmt.Println("ERROR: Error while reading file contents: " + readError.Error())
+			os.Exit(2)
+		}
+		//fmt.Printf("Read %d bytes | ", readBytes)
+		//Enviar el buffer al cliente
+		sentBytes, sendError := connection.Write(tempBuffer[:readBytes])
+		if sendError != nil {
+			fmt.Println("ERROR: Error while sending file contents: " + sendError.Error())
+			os.Exit(2)
+		}
+		//Actualizar la cantidad enviada
+		sentLength += sentBytes
+		//Comprobar que lo que se lee se esté enviando completamente
+		if readBytes != sentBytes {
+			fmt.Println("ERROR: File buffer was sent incompletely")
+			os.Exit(2)
+		}
+		//fmt.Printf("Sent %d bytes\n", sentBytes)
+	}
+	//Asegurarse de que el archivo se leyó y envió completamente
+	if int64(sentLength) != fileSize {
+		fmt.Println("ERROR: File was sent incompletely")
+		os.Exit(2)
+	}
 	//Obtener respuesta del servidor (empezando por el header)
 	fmt.Println("File sent. Awaiting server response...")
 	var headerBuffer []byte = make([]byte, 10)
