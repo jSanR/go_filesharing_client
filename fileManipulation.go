@@ -101,21 +101,36 @@ func receiveFile(connection net.Conn, downloadPath string, channel int8) {
 	//Ya se tiene el nombre del archivo, se muestra un mensaje
 	fmt.Println("Receiving file", filename, "from server...")
 	//Leer el resto del mensaje (contenido del archivo)
-	var fileContentBuffer []byte = make([]byte, contentLength-FILENAME_MAX_LENGTH)
-	n, fileContentError := connection.Read(fileContentBuffer)
-	//Error check
-	if fileContentError != nil {
-		fmt.Println("ERROR: Error while reading file content: " + fileContentError.Error())
-		_, err := connection.Write(createSimpleMessage(3, channel, []byte("file read error")))
-		if err != nil {
-			fmt.Println("ERROR: Error while sending response to server: " + err.Error())
+	var fileContentBuffer []byte = make([]byte, 0) //Se irá llenando iterativamente a partir de tempBuffer
+	var tempBuffer []byte = make([]byte, BUFFER_SIZE)
+	var readLength int64 = 0
+	for {
+		//Leer al buffer temporal
+		n, fileContentError := connection.Read(tempBuffer)
+		//Error check
+		if fileContentError == io.EOF { //Se concluyó la lectura
+			break
+		} else if fileContentError != nil { //Hubo un error de otro tipo
+			fmt.Println("ERROR: Error while reading file content: " + fileContentError.Error())
+			_, err := connection.Write(createSimpleMessage(3, channel, []byte("file read error")))
+			if err != nil {
+				fmt.Println("ERROR: Error while sending response to server: " + err.Error())
+			}
+			exitStatus = 2
+			fmt.Printf("Handled file transfer (status: %d)\n", exitStatus)
+			return
 		}
-		exitStatus = 2
-		fmt.Printf("Handled file transfer (status: %d)\n", exitStatus)
-		return
+		//Añadir lo leído al buffer del archivo
+		fileContentBuffer = append(fileContentBuffer, tempBuffer...)
+		//Actualizar longitud leída
+		readLength += int64(n)
+		//Si ya se leyó completamente el archivo, se sale del bucle
+		if readLength == contentLength-FILENAME_MAX_LENGTH {
+			break
+		}
 	}
-	if int64(n) != contentLength-FILENAME_MAX_LENGTH {
-		fmt.Printf("ERROR: Could not read file content completely (expected: %d, real: %d)\n", contentLength-FILENAME_MAX_LENGTH, n)
+	if readLength != contentLength-FILENAME_MAX_LENGTH {
+		fmt.Printf("ERROR: Could not read file content completely (expected: %d, real: %d)\n", contentLength-FILENAME_MAX_LENGTH, readLength)
 		_, err := connection.Write(createSimpleMessage(3, channel, []byte("file incomplete read")))
 		if err != nil {
 			fmt.Println("ERROR: Error while sending response to server: " + err.Error())
