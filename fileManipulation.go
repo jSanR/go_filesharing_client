@@ -187,16 +187,17 @@ func receiveFile(connection net.Conn, downloadPath string, channel int8) {
 func sendFile(messageHeader []byte, filename []byte, file *os.File) {
 	//Asegurarse de que el archivo se cierre
 	defer file.Close()
-	//Copiar el contenido del archivo en cuestión a un buffer
-	var fileBuffer *bytes.Buffer = bytes.NewBuffer(nil)
+	//Obtener el tamaño del archivo
+	var fileInfo os.FileInfo
 	var fileSize int64
-	var copyError error
-	fileSize, copyError = io.Copy(fileBuffer, file)
+	var statError error
+	fileInfo, statError = file.Stat()
 	//Error check
-	if copyError != nil {
-		fmt.Println("ERROR: Error while copying file to buffer: " + copyError.Error())
+	if statError != nil {
+		fmt.Println("ERROR: Error while getting file size: " + statError.Error())
 		os.Exit(5)
 	}
+	fileSize = fileInfo.Size()
 	//Completar el mensaje (excepto el archivo, pues este se enviará iterativamente luego)
 	var message, lengthBuffer []byte
 	//Se añade el header al mensaje
@@ -247,12 +248,6 @@ func sendFile(messageHeader []byte, filename []byte, file *os.File) {
 	fmt.Printf("Sending %d bytes...\n", fileSize)
 	var tempBuffer []byte = make([]byte, BUFFER_SIZE)
 	var sentLength int = 0
-	//Leer el archivo desde el inicio nuevamente
-	_, seekError := file.Seek(0, io.SeekStart)
-	if seekError != nil {
-		fmt.Println("ERROR: Error while seeking file to the start: " + seekError.Error())
-		os.Exit(5)
-	}
 	for {
 		//Leer del archivo al buffer temporal
 		readBytes, readError := file.Read(tempBuffer)

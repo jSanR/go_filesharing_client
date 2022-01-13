@@ -167,7 +167,7 @@ func sendFileThroughChannel(channel int8, filepath string) {
 
 func unsubscribe(channel int8, address []byte) {
 	//Anunciar que el cliente va a cancelar su suscripción al canal
-	fmt.Printf("\nCancelando suscripción de %v al canal %d...\n", string(address), channel)
+	fmt.Printf("\nCancelling subscription of %v to channel %d...\n", string(address), channel)
 	//Armar el mensaje a enviar al servidor
 	var message []byte = createSimpleMessage(4, channel, address)
 	//Conectarse al servidor para enviar el mensaje
