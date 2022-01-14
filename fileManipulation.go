@@ -121,7 +121,7 @@ func receiveFile(connection net.Conn, downloadPath string, channel int8) {
 			return
 		}
 		//Añadir lo leído al buffer del archivo
-		fileContentBuffer = append(fileContentBuffer, tempBuffer...)
+		fileContentBuffer = append(fileContentBuffer, tempBuffer[:n]...)
 		//Actualizar longitud leída
 		readLength += int64(n)
 		//Si ya se leyó completamente el archivo, se sale del bucle
